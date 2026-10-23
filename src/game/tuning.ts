@@ -5,17 +5,21 @@ export const GRACE_MS = 10000;
 export interface Rival {
   name: string;
   color: number;
+  /** Silhouette: 0 bald, 1 spikes, 2 mohawk, 3 headband, 4 crown. */
+  hair: number;
+  /** Body width multiplier. */
+  wide: number;
 }
 
 export const RIVALS: Rival[] = [
-  { name: 'Rookie', color: 0x6fb1ff },
-  { name: 'Biff', color: 0x7ed957 },
-  { name: 'Tank', color: 0xffb347 },
-  { name: 'Viper', color: 0xb36bff },
-  { name: 'Mugsy', color: 0xff6b9a },
-  { name: 'Iron Joe', color: 0x9aa5b1 },
-  { name: 'Blaze', color: 0xff5a36 },
-  { name: 'The Champ', color: 0xffd23f },
+  { name: 'Rookie', color: 0x6fb1ff, hair: 0, wide: 1 },
+  { name: 'Biff', color: 0x7ed957, hair: 1, wide: 1 },
+  { name: 'Tank', color: 0xffb347, hair: 0, wide: 1.25 },
+  { name: 'Viper', color: 0xb36bff, hair: 2, wide: 0.85 },
+  { name: 'Mugsy', color: 0xff6b9a, hair: 3, wide: 1.1 },
+  { name: 'Iron Joe', color: 0x9aa5b1, hair: 1, wide: 1.2 },
+  { name: 'Blaze', color: 0xff5a36, hair: 2, wide: 0.95 },
+  { name: 'The Champ', color: 0xffd23f, hair: 4, wide: 1.15 },
 ];
 
 export interface Tuning {

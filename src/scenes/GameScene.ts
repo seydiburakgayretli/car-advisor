@@ -1,5 +1,8 @@
 import Phaser from 'phaser';
 import { platform } from '../platform';
+import { Glove, INK, drawArena, drawFighter, drawSpeaker, type Face } from '../game/art';
+import { Particles, Popups } from '../game/Fx';
+import { Sfx } from '../game/Sfx';
 import { GRACE_MS, MAX_HEARTS, rivalFor, tuning, type Tuning } from '../game/tuning';
 
 type State = 'title' | 'idle' | 'threat' | 'gap' | 'ko' | 'over' | 'paused';
@@ -25,7 +28,6 @@ interface DebugState {
 }
 
 const FONT = 'system-ui, sans-serif';
-const INK = 0x14141f;
 const GAP_MS = 300;
 const RETRY_LOCK_MS = 350;
 const KO_FALL_MS = 800;
@@ -33,6 +35,8 @@ const KO_TOTAL_MS = 1500;
 const KO_PERFECT = 0.34;
 const KO_GOOD = 0.12;
 const KO_HIT_LOSS = 0.15;
+const STOP_COUNTER_MS = 70;
+const STOP_KO_MS = 180;
 
 const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
 const easeOut = (v: number): number => 1 - (1 - v) * (1 - v);
@@ -72,10 +76,12 @@ export class GameScene extends Phaser.Scene {
   private fxSide: Side = 1;
   private koT = 0;
   private koSwapped = false;
+  private freeze = 0;
+  private face: Face = 'normal';
+  private faceT = 0;
   private oppOffX = 0;
   private oppOffY = 0;
   private overAt = 0;
-  private popT = 999;
   private readonly tapT: [number, number] = [999, 999];
   private ringColor = 0;
 
@@ -88,11 +94,15 @@ export class GameScene extends Phaser.Scene {
   // display objects
   private bg!: Phaser.GameObjects.Rectangle;
   private floor!: Phaser.GameObjects.Rectangle;
+  private arena!: Phaser.GameObjects.Graphics;
   private divider!: Phaser.GameObjects.Rectangle;
-  private body!: Phaser.GameObjects.Rectangle;
-  private head!: Phaser.GameObjects.Arc;
-  private oppGloves!: [Phaser.GameObjects.Arc, Phaser.GameObjects.Arc];
-  private myGloves!: [Phaser.GameObjects.Arc, Phaser.GameObjects.Arc];
+  private fighter!: Phaser.GameObjects.Graphics;
+  private oppGloves!: [Glove, Glove];
+  private myGloves!: [Glove, Glove];
+  private particles!: Particles;
+  private popups!: Popups;
+  private muteBtn!: Phaser.GameObjects.Graphics;
+  private readonly sfx = new Sfx();
   private ring!: Phaser.GameObjects.Arc;
   private flash!: Phaser.GameObjects.Rectangle;
   private dim!: Phaser.GameObjects.Rectangle;
@@ -103,7 +113,6 @@ export class GameScene extends Phaser.Scene {
   private bestText!: Phaser.GameObjects.Text;
   private rivalText!: Phaser.GameObjects.Text;
   private comboText!: Phaser.GameObjects.Text;
-  private popText!: Phaser.GameObjects.Text;
   private msgText!: Phaser.GameObjects.Text;
   private shownScore = -1;
   private shownCombo = -1;
@@ -118,14 +127,18 @@ export class GameScene extends Phaser.Scene {
 
   create(): void {
     this.loadSave();
+    this.sfx.muted = platform.load('mute') === '1';
     this.bg = this.add.rectangle(0, 0, 10, 10, 0x2a2d45);
     this.floor = this.add.rectangle(0, 0, 10, 10, 0x3b2f5c);
     this.divider = this.add.rectangle(0, 0, 4, 10, 0xffffff, 0.07);
-    this.body = this.add.rectangle(0, 0, 10, 10, 0xffffff).setStrokeStyle(4, INK);
-    this.head = this.add.circle(0, 0, 10, 0xf1c27d).setStrokeStyle(4, INK);
-    this.oppGloves = [this.makeGlove(0xf5f5f5), this.makeGlove(0xf5f5f5)];
+    this.arena = this.add.graphics();
+    this.fighter = this.add.graphics();
+    this.oppGloves = [new Glove(this, 0xf5f5f5, -1), new Glove(this, 0xf5f5f5, 1)];
     this.ring = this.add.circle(0, 0, 10).setFillStyle().setStrokeStyle(5, 0xffffff).setVisible(false);
-    this.myGloves = [this.makeGlove(0xe63946), this.makeGlove(0xe63946)];
+    this.myGloves = [new Glove(this, 0xe63946, -1), new Glove(this, 0xe63946, 1)];
+    this.particles = new Particles(this);
+    this.popups = new Popups(this);
+    this.muteBtn = this.add.graphics();
     this.flash = this.add.rectangle(0, 0, 10, 10, 0xff2d2d, 0);
     this.koBg = this.add.rectangle(0, 0, 10, 10, 0x000000, 0.45).setOrigin(0, 0.5);
     this.koFill = this.add.rectangle(0, 0, 10, 10, 0xffd23f).setOrigin(0, 0.5);
@@ -139,7 +152,6 @@ export class GameScene extends Phaser.Scene {
     this.bestText = txt(1, 0);
     this.rivalText = txt(0.5, 0);
     this.comboText = txt(0.5, 0.5).setColor('#ffd23f');
-    this.popText = txt(0.5, 0.5).setAlpha(0);
     this.msgText = txt(0.5, 0.5).setLineSpacing(8);
 
     this.layout();
@@ -149,12 +161,19 @@ export class GameScene extends Phaser.Scene {
 
     this.scale.on('resize', this.layout, this);
     this.events.once('shutdown', () => this.scale.off('resize', this.layout, this));
-    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => this.onInput(p.x < this.scale.width / 2 ? -1 : 1));
+    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      this.sfx.unlock();
+      const b = this.muteBtn;
+      if (Math.abs(p.x - b.x) < this.u && Math.abs(p.y - b.y) < this.u) this.toggleMute();
+      else this.onInput(p.x < this.scale.width / 2 ? -1 : 1);
+    });
     const kb = this.input.keyboard;
     if (kb) {
       kb.addCapture('SPACE,LEFT,RIGHT,A,D');
       kb.on('keydown', (e: KeyboardEvent) => {
         if (e.repeat) return;
+        this.sfx.unlock();
+        if (e.code === 'KeyM') return this.toggleMute();
         if (e.code === 'ArrowLeft' || e.code === 'KeyA') this.onInput(-1);
         else if (e.code === 'ArrowRight' || e.code === 'KeyD') this.onInput(1);
         else if (e.code === 'Space') this.onInput(0);
@@ -166,8 +185,10 @@ export class GameScene extends Phaser.Scene {
 
   // ---------- setup helpers ----------
 
-  private makeGlove(color: number): Phaser.GameObjects.Arc {
-    return this.add.circle(0, 0, 10, color).setStrokeStyle(4, INK);
+  private toggleMute(): void {
+    this.sfx.setMuted(!this.sfx.muted);
+    platform.save('mute', this.sfx.muted ? '1' : '0');
+    drawSpeaker(this.muteBtn, this.u * 0.45, this.sfx.muted);
   }
 
   private loadSave(): void {
@@ -195,29 +216,37 @@ export class GameScene extends Phaser.Scene {
     this.divider.setPosition(w / 2, h / 2).setSize(4, h);
     this.flash.setPosition(w / 2, h / 2).setSize(w, h);
     this.dim.setPosition(w / 2, h / 2).setSize(w, h);
-    this.body.setSize(u * 5, u * 4.2);
-    this.head.setRadius(u * 1.5);
-    for (const g of this.oppGloves) g.setRadius(u * 1.1);
-    for (const g of this.myGloves) g.setRadius(u * 1.4);
+    drawArena(this.arena, w, h);
+    this.drawFace();
+    for (const g of this.oppGloves) g.resize(u * 1.1);
+    for (const g of this.myGloves) g.resize(u * 1.4);
+    this.particles.setUnit(u);
+    this.popups.setUnit(u, Math.round(fs * 1.5));
     this.ring.setRadius(u * 1.1);
 
     this.scoreText.setPosition(pad, pad).setFontSize(fs);
     this.bestText.setPosition(w - pad, pad).setFontSize(fs);
-    this.rivalText.setPosition(w / 2, pad).setFontSize(fs);
+    this.rivalText.setPosition(w / 2, this.cy + u * 4.5).setFontSize(Math.round(fs * 0.75));
     this.comboText.setPosition(w / 2, h * 0.58).setFontSize(Math.round(fs * 1.6));
-    this.popText.setPosition(w / 2, this.cy - u * 3.4).setFontSize(Math.round(fs * 1.5));
     this.msgText.setPosition(w / 2, h * 0.6).setFontSize(Math.round(fs * 1.3)).setWordWrapWidth(w * 0.9);
 
-    this.barW = Math.min(w * 0.5, u * 8);
+    const barX = pad + MAX_HEARTS * u * 1.1 + u * 0.3;
+    this.barW = w - pad - u * 1.5 - barX;
     const barY = pad + fs * 2.4;
-    this.koBg.setPosition(w / 2 - this.barW / 2, barY).setSize(this.barW, u * 0.5);
-    this.koFill.setPosition(w / 2 - this.barW / 2, barY).setSize(this.barW, u * 0.5);
+    this.koBg.setPosition(barX, barY).setSize(this.barW, u * 0.5);
+    this.koFill.setPosition(barX, barY).setSize(this.barW, u * 0.5);
     this.heartIcons.forEach((hi, i) => hi.setRadius(u * 0.4).setPosition(pad + u * 0.4 + i * u * 1.1, barY));
+    this.muteBtn.setPosition(w - pad - u * 0.55, barY);
+    drawSpeaker(this.muteBtn, u * 0.45, this.sfx.muted);
   }
 
   private applyRival(): void {
-    this.body.setFillStyle(rivalFor(this.level).color);
+    this.drawFace();
     this.rivalText.setText(`#${this.level + 1} ${rivalFor(this.level).name.toUpperCase()}`);
+  }
+
+  private drawFace(): void {
+    if (this.u > 0) drawFighter(this.fighter, this.u, rivalFor(this.level), this.face);
   }
 
   private setHearts(): void {
@@ -235,8 +264,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private pop(text: string, color: string): void {
-    this.popText.setText(text).setColor(color);
-    this.popT = 0;
+    this.popups.spawn(text, color, this.cx, this.cy - this.u * 2.9, 1, 800);
   }
 
   // ---------- input ----------
@@ -288,6 +316,8 @@ export class GameScene extends Phaser.Scene {
     this.oppOffX = 0;
     this.oppOffY = 0;
     this.fx = 'none';
+    this.face = 'normal';
+    this.sfx.start();
     this.applyRival();
     this.setHearts();
     this.setMsg('', false);
@@ -322,12 +352,13 @@ export class GameScene extends Phaser.Scene {
     this.state = 'threat';
     this.startT = this.t;
     this.impactAt = this.t + th.windupMs;
-    this.oppGloves[th.side === -1 ? 0 : 1].setFillStyle(0xffd23f);
+    this.oppGloves[th.side === -1 ? 0 : 1].setHot(true);
+    this.sfx.whoosh();
   }
 
   private endThreat(): void {
     const th = this.seq[this.seqIdx];
-    this.oppGloves[th.side === -1 ? 0 : 1].setFillStyle(0xf5f5f5);
+    this.oppGloves[th.side === -1 ? 0 : 1].setHot(false);
     if (this.seqIdx + 1 < this.seqLen) {
       this.seqIdx++;
       this.state = 'gap';
@@ -349,6 +380,7 @@ export class GameScene extends Phaser.Scene {
       this.score = Math.max(0, this.score - 50);
       this.fx = 'none';
       this.pop('FEINT!', '#ff9f1c');
+      this.sfx.feint();
       this.endThreat();
       return;
     }
@@ -363,18 +395,29 @@ export class GameScene extends Phaser.Scene {
     const th = this.seq[this.seqIdx];
     this.fxSide = th.side;
     this.fxT = 0;
+    const ix = this.cx + this.oppOffX + th.side * this.u * 1.9;
+    const iy = this.cy - this.u * 0.3;
     if (perfect) {
       this.combo++;
-      this.score += 100 * this.combo;
+      const gain = 100 * this.combo;
+      this.score += gain;
       this.ko += KO_PERFECT;
       this.fx = 'counter';
       this.pop(this.combo > 1 ? `PERFECT x${this.combo}` : 'PERFECT!', '#ffd23f');
+      this.popups.spawn(`+${gain}`, '#7CFC9A', ix, iy, 0.8, 700);
+      this.particles.burst(ix, iy, 0xffd23f, 9, 9, 0.5);
+      this.sfx.counter(this.combo);
+      this.freeze = STOP_COUNTER_MS;
+      this.cameras.main.shake(90, 0.006);
+      this.hurtFace();
     } else {
       this.combo = 0;
       this.score += 20;
       this.ko += KO_GOOD;
       this.fx = 'block';
       this.pop('BLOCK', '#8ecae6');
+      this.particles.burst(ix, iy, 0xffffff, 4, 5, 0.35);
+      this.sfx.block();
     }
     if (this.ko >= 0.999) this.startKo();
     else this.endThreat();
@@ -389,7 +432,10 @@ export class GameScene extends Phaser.Scene {
     this.ko = Math.max(0, this.ko - KO_HIT_LOSS);
     this.pop(reason === 'early' ? 'TOO EARLY' : reason === 'wrong' ? 'WRONG SIDE' : 'TOO LATE', '#ff5a5a');
     this.flash.setAlpha(0.35);
-    this.cameras.main.shake(120, 0.012);
+    this.cameras.main.shake(140, 0.014);
+    this.particles.burst(this.cx + th.side * this.u * 2.2, this.cy + this.u * 4.2, 0xff5a5a, 8, 8, 0.45);
+    this.sfx.hit();
+    this.freeze = STOP_COUNTER_MS;
     const protectedHeart = this.hearts === 1 && this.t - this.runStart < GRACE_MS;
     if (!protectedHeart) this.hearts--;
     this.setHearts();
@@ -398,17 +444,29 @@ export class GameScene extends Phaser.Scene {
   }
 
   private startKo(): void {
-    this.oppGloves[this.seq[this.seqIdx].side === -1 ? 0 : 1].setFillStyle(0xf5f5f5);
+    this.oppGloves[this.seq[this.seqIdx].side === -1 ? 0 : 1].setHot(false);
     this.state = 'ko';
     this.koT = 0;
     this.koSwapped = false;
     this.score += 500;
     this.ko = 1;
     this.pop('KNOCKOUT!', '#ffd23f');
+    this.particles.burst(this.cx + this.oppOffX, this.cy - this.u * 0.9, 0xffd23f, 22, 12, 0.7);
+    this.sfx.knockout();
+    this.freeze = STOP_KO_MS;
+    this.cameras.main.shake(260, 0.016);
+    this.hurtFace();
     if (this.level + 1 > this.bestRival) this.bestRival = this.level + 1;
   }
 
+  private hurtFace(): void {
+    this.face = 'hurt';
+    this.faceT = this.t;
+    this.drawFace();
+  }
+
   private gameOver(): void {
+    this.sfx.gameOver();
     this.state = 'over';
     this.overAt = this.t;
     platform.gameplayStop();
@@ -430,12 +488,21 @@ export class GameScene extends Phaser.Scene {
     this.wall = performance.now();
     if (this.state !== 'paused') {
       const dt = Math.min(delta, 50);
-      this.t += dt;
-      this.tapT[0] += dt;
-      this.tapT[1] += dt;
-      this.fxT += dt;
-      this.popT += dt;
-      this.advance(dt);
+      this.particles.update(dt);
+      this.popups.update(dt);
+      if (this.freeze > 0) {
+        this.freeze -= dt;
+      } else {
+        this.t += dt;
+        this.tapT[0] += dt;
+        this.tapT[1] += dt;
+        this.fxT += dt;
+        this.advance(dt);
+        if (this.face === 'hurt' && this.state !== 'ko' && this.t - this.faceT > 380) {
+          this.face = 'normal';
+          this.drawFace();
+        }
+      }
     }
     this.flash.setAlpha(Math.max(0, this.flash.alpha - delta / 400));
     this.render();
@@ -468,6 +535,7 @@ export class GameScene extends Phaser.Scene {
             this.tn = tuning(this.level);
             this.ko = 0;
             this.oppOffY = 0;
+            this.face = 'normal';
             this.applyRival();
           }
           this.oppOffX = (1 - easeOut(clamp01((this.koT - KO_FALL_MS) / (KO_TOTAL_MS - KO_FALL_MS)))) * this.scale.width;
@@ -490,8 +558,7 @@ export class GameScene extends Phaser.Scene {
     const recoil = this.fx === 'counter' && this.fxT < 250 ? -this.fxSide * u * 0.7 * (1 - this.fxT / 250) : 0;
     const ox = cx + this.oppOffX + recoil;
     const oy = this.oppOffY + bob;
-    this.body.setPosition(ox, cy + u * 1.9 + oy);
-    this.head.setPosition(ox, cy - u * 0.9 + oy);
+    this.fighter.setPosition(ox, cy - u * 0.9 + oy);
 
     const threat = this.state === 'threat' ? this.seq[this.seqIdx] : null;
     let ringOn = false;
@@ -529,14 +596,14 @@ export class GameScene extends Phaser.Scene {
           gy -= u * 0.6 * k;
         }
       }
-      this.oppGloves[i].setPosition(gx, gy).setScale(gs);
+      this.oppGloves[i].c.setPosition(gx, gy).setScale(gs);
     }
     this.ring.setVisible(ringOn);
 
     for (let i = 0; i < 2; i++) {
       const s = i === 0 ? -1 : 1;
       const k = this.tapT[i] < 160 ? 1 - this.tapT[i] / 160 : 0;
-      this.myGloves[i].setPosition(cx + s * u * 3.2 - s * u * k * 0.8, h - u * 1.7 - u * 2.2 * k).setScale(1 + 0.25 * k);
+      this.myGloves[i].c.setPosition(cx + s * u * 3.2 - s * u * k * 0.8, h - u * 1.7 - u * 2.2 * k).setScale(1 + 0.25 * k);
     }
 
     this.koFill.setScale(clamp01(this.ko), 1);
@@ -549,7 +616,6 @@ export class GameScene extends Phaser.Scene {
       this.shownCombo = this.combo;
       this.comboText.setText(this.combo > 1 ? `COMBO x${this.combo}` : '');
     }
-    this.popText.setAlpha(this.popT < 800 ? 1 - this.popT / 800 : 0).setY(cy - u * 3.4 - u * 0.8 * clamp01(this.popT / 800));
     if (this.state === 'title') this.msgText.setAlpha(0.75 + 0.25 * Math.sin(this.t / 200));
     else this.msgText.setAlpha(1);
     this.divider.setVisible(this.state !== 'title');

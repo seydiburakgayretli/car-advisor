@@ -18,9 +18,9 @@ Acceptance (owner): owner plays 5 runs on phone and wants a 6th.
 
 ## M2 – Game feel, art, audio
 Model: Sonnet
-- [ ] Hit-stop, screen shake, particles, score pop-ups (pooled)
-- [ ] Procedural vector art for player gloves, opponents, ring
-- [ ] Generated WebAudio SFX + mute toggle
+- [x] Hit-stop, screen shake, particles, score pop-ups (pooled)
+- [x] Procedural vector art for player gloves, opponents, ring
+- [x] Generated WebAudio SFX + mute toggle (speaker icon / M key, saved via adapter)
 Acceptance: 60 fps on mid-range phone; impacts feel punchy; no console errors.
 
 ## M3 – Progression
