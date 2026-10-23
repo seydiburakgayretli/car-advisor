@@ -7,5 +7,10 @@
   Relative base path so one build serves GitHub Pages and portal iframes.
 - Next: owner picks a concept → finalize GDD → M1 grey-box + GitHub Pages deploy.
 
+## 2026-10-23 – M0 done
+- Done: owner picked A. Counter Champ; GDD finalized (candidates collapsed to a decision note).
+  Session coach: model check at every session start; PLAN milestones carry a "Model:" tag.
+- Next: M1 grey-box core loop + Playwright smoke + GitHub Pages. Model: Sonnet.
+
 ## Overrides
 (none)

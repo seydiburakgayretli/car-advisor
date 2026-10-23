@@ -1,47 +1,10 @@
-# GDD – DRAFT (awaiting owner's concept pick)
+# GDD – Counter Champ (final, 2026-10-23)
 
-## Concept candidates
+Decision: owner picked concept A (47/50) over Ring Rush (42, crowded, no round breaks) and
+Drift Hook (43, crowded, physics tuning cost). Main risk: timing games punish new players →
+opponent 1 is very slow with huge telegraphs and cannot KO you in the first 10 s.
 
-Scores 1–5 per market rule. "Risk" = what could make it fail.
-
-| Rule | A. Counter Champ (boxing parry) | B. Ring Rush (boxing two-side brawler) | C. Drift Hook (one-tap car drift) |
-|---|---|---|---|
-| Fun in 10 s, teach by play | 4 | 5 | 4 |
-| "One more try", 30–120 s runs | 5 | 4 | 5 |
-| One-thumb / one-key | 4 (two zones) | 4 (two zones) | 5 (hold) |
-| Portrait + landscape | 5 | 4 (wide is easier) | 4 |
-| Tiny / procedural | 5 | 5 | 5 |
-| Juice potential | 5 | 5 | 4 |
-| PEGI 12 safe | 5 | 5 | 5 |
-| Clean consistent style | 5 | 4 (many enemies) | 5 |
-| Stands out on portals | 4 | 3 (many clones) | 3 (many clones) |
-| Natural ad breaks | 5 (between opponents) | 3 (only game over) | 3 (only game over) |
-| **Total** | **47** | **42** | **43** |
-
-**A. Counter Champ** – You face one cartoon boxer. He winds up a left or right punch; a
-shrinking ring on that glove shows the timing. Tap that side as the ring closes: *Perfect* =
-parry + automatic counter (big hit, hit-stop, combo up). *Early/late* = block (small score, combo
-lost). *Miss* = you get hit (lose 1 of 3 hearts). Counters fill his KO bar; KO → next, faster
-opponent with new tricks (feints, double punches). Risk: timing games punish new players; fixed by
-a slow first opponent with huge telegraphs.
-
-**B. Ring Rush** – Punching bags / cartoon sparring dummies slide in from left and right; tap the
-side to jab the nearest one. Speed ramps, combos for streaks, punching too early leaves you open.
-Proven loop (Timberman / One Finger Death Punch style), instantly readable, but crowded and has no
-built-in round breaks.
-
-**C. Drift Hook** – Top-down car; hold to hook onto the nearest pin and drift around it, release
-to shoot straight. Pass through gates, don't leave the track. Very satisfying one-input feel, but
-genre is crowded and needs more tuning time for the physics.
-
-**Recommendation: A. Counter Champ.** Your boxing idea, the most distinctive on portals, one
-character to draw (consistent style, tiny), and the opponent ladder gives natural ad breaks and
-small unlocks for free. Dodge is folded into the parry tap to keep it one-thumb; a real dodge can
-be added later if playtests want more depth.
-
----
-
-## Concept: Counter Champ (draft)
+## Concept
 Cartoon reflex boxing. Read the punch, tap at the perfect moment, land the counter, chain combos,
 knock out a ladder of rivals. Each run: 30–120 s.
 
