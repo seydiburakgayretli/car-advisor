@@ -9,12 +9,12 @@ Acceptance: build passes; owner has chosen a concept.
 
 ## M1 – Grey-box core loop
 Model: Sonnet
-- [ ] Core loop with placeholder shapes; touch, mouse, keyboard
-- [ ] Score, hearts, game over, instant restart (< 1 s)
-- [ ] `gameplayStart` on first input, `gameplayStop` on game over (local adapter logs)
-- [ ] Playwright smoke test (load → input → game over)
-- [ ] GitHub Pages auto-deploy of the dev build; link shared
-Acceptance: owner plays 5 runs on phone and wants a 6th.
+- [x] Core loop with placeholder shapes; touch, mouse, keyboard
+- [x] Score, hearts, game over, instant restart (< 1 s)
+- [x] `gameplayStart` on first input, `gameplayStop` on game over (local adapter logs)
+- [x] Playwright smoke test (load → input → game over)
+- [x] GitHub Pages auto-deploy of the dev build; link shared
+Acceptance (owner): owner plays 5 runs on phone and wants a 6th.
 
 ## M2 – Game feel, art, audio
 Model: Sonnet

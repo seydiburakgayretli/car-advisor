@@ -1,16 +1,18 @@
 import Phaser from 'phaser';
+import { platform } from '../platform';
 
-/** Placeholder scene for M0; replaced by the real game scene in M1. */
+/** Initialises the platform adapter, then hands over to the game scene. */
 export class BootScene extends Phaser.Scene {
   constructor() {
     super('Boot');
   }
 
   create(): void {
-    document.getElementById('loading')?.remove();
-    const { width, height } = this.scale;
-    this.add.text(width / 2, height / 2, 'Counter Champ\nM0 scaffold', {
-      fontFamily: 'system-ui, sans-serif', fontSize: '32px', color: '#ffffff', align: 'center',
-    }).setOrigin(0.5);
+    platform.loadingStart();
+    void platform.init().then(() => {
+      document.getElementById('loading')?.remove();
+      platform.loadingFinished();
+      this.scene.start('Game');
+    });
   }
 }
