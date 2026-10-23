@@ -3,7 +3,7 @@
 Tiny HTML5 arcade game for CrazyGames first, Poki later. Product owner decides, Claude builds.
 Stack: Vite + TypeScript + Phaser 3.90, static build into `/dist`. Portal SDKs sit behind one
 adapter in `src/platform/`. Concept status: see docs/GDD.md (draft until the owner picks).
-Talk to the owner in Turkish. Code, comments, docs and game UI in English.
+Talk to the owner in Turkish. Answers: short and plain (max ~8 lines), no long lists; details go to docs. Code, comments, docs and game UI in English.
 
 ## Commands
 - `npm run dev` – dev server (local platform, fake ads)
