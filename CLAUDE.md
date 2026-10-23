@@ -42,6 +42,13 @@ Build passes, bundle size reported, no console errors, headless Playwright smoke
 - Model: "🔁 Model öner: /model [name], çünkü [one short reason]."
   Opus: concept, design decisions, architecture, bugs failed twice, final pre-release review.
   Sonnet: normal implementation, art/audio passes, refactors, tests, docs.
+- Model check at session start (every new session, incl. after /clear): before the first edit,
+  compare the model you are running as (system prompt) with the model the next task needs
+  (use the Opus/Sonnet rules above; PLAN.md milestone "Model:" tag wins if present). If they
+  differ, your FIRST reply line is the 🔁 warning, then wait for the owner's switch or "devam"
+  before doing the work. A new session resets the ignore rule below, so warn again every time.
+  End each milestone by naming the recommended model for the next one in PROGRESS.md "Next:".
+  Never do Opus-class work on Sonnet (or cheap work on Opus) silently.
 - Never repeat an ignored warning in the same session unless things got worse.
 
 ## Compass: say no
