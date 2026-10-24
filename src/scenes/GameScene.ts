@@ -3,7 +3,8 @@ import { platform } from '../platform';
 import { Glove, INK, drawArena, drawFighter, drawSpeaker, type Face } from '../game/art';
 import { Particles, Popups } from '../game/Fx';
 import { Sfx } from '../game/Sfx';
-import { GRACE_MS, MAX_HEARTS, rivalFor, tuning, type Tuning } from '../game/tuning';
+import { GRACE_MS, HEAL_EVERY, MAX_HEARTS, rivalFor, tuning, type Tuning } from '../game/tuning';
+import { FLOORS, GLOVES, nextGoal, topUnlocked } from '../game/unlocks';
 
 type State = 'title' | 'idle' | 'threat' | 'gap' | 'ko' | 'over' | 'paused';
 type Side = -1 | 1;
@@ -25,6 +26,7 @@ interface DebugState {
   msToImpact: number;
   threatSide: number;
   feint: boolean;
+  glove: number;
 }
 
 const FONT = 'system-ui, sans-serif';
@@ -32,8 +34,7 @@ const GAP_MS = 300;
 const RETRY_LOCK_MS = 350;
 const KO_FALL_MS = 800;
 const KO_TOTAL_MS = 1500;
-const KO_PERFECT = 0.34;
-const KO_GOOD = 0.12;
+const KO_BLOCK_SHARE = 0.35;
 const KO_HIT_LOSS = 0.15;
 const STOP_COUNTER_MS = 70;
 const STOP_KO_MS = 180;
@@ -54,6 +55,10 @@ export class GameScene extends Phaser.Scene {
   private score = 0;
   private best = 0;
   private bestRival = 0;
+  /** Most rivals knocked out in one run (drives glove unlocks). */
+  private bestKos = 0;
+  private gloveIdx = 0;
+  private floorIdx = 0;
   private hearts = MAX_HEARTS;
   private combo = 0;
   private ko = 0;
@@ -118,7 +123,7 @@ export class GameScene extends Phaser.Scene {
   private shownCombo = -1;
 
   private readonly dbg: DebugState = {
-    state: 'title', score: 0, hearts: MAX_HEARTS, level: 0, msToImpact: 9999, threatSide: 0, feint: false,
+    state: 'title', score: 0, hearts: MAX_HEARTS, level: 0, msToImpact: 9999, threatSide: 0, feint: false, glove: 0,
   };
 
   constructor() {
@@ -149,12 +154,13 @@ export class GameScene extends Phaser.Scene {
       this.add.text(0, 0, '', { fontFamily: FONT, fontStyle: '800', color: '#ffffff', stroke: '#14141f', strokeThickness: 5, align: 'center' })
         .setOrigin(ox, oy);
     this.scoreText = txt(0, 0);
-    this.bestText = txt(1, 0);
+    this.bestText = txt(1, 0).setLineSpacing(2);
     this.rivalText = txt(0.5, 0);
     this.comboText = txt(0.5, 0.5).setColor('#ffd23f');
     this.msgText = txt(0.5, 0.5).setLineSpacing(8);
 
     this.layout();
+    this.applyUnlocks(false);
     this.applyRival();
     this.setHearts();
     this.showTitle();
@@ -195,12 +201,37 @@ export class GameScene extends Phaser.Scene {
     try {
       const raw = platform.load('save');
       if (!raw) return;
-      const d = JSON.parse(raw) as { best?: unknown; bestRival?: unknown };
+      const d = JSON.parse(raw) as { best?: unknown; bestRival?: unknown; bestKos?: unknown };
       if (typeof d.best === 'number') this.best = d.best;
       if (typeof d.bestRival === 'number') this.bestRival = d.bestRival;
+      if (typeof d.bestKos === 'number') this.bestKos = d.bestKos;
     } catch {
       /* corrupt save: start fresh */
     }
+  }
+
+  /** Mid-run saves keep the run score out of `best` so the game over card can still say NEW BEST. */
+  private writeSave(): void {
+    const best = Math.max(this.best, this.score);
+    platform.save('save', JSON.stringify({ best, bestRival: this.bestRival, bestKos: this.bestKos }));
+  }
+
+  /** Auto-equips the newest unlocked gloves / ring; `announce` pops a message for fresh unlocks. */
+  private applyUnlocks(announce: boolean): void {
+    const best = Math.max(this.best, this.score);
+    const g = topUnlocked(GLOVES, this.bestKos, best);
+    const f = topUnlocked(FLOORS, this.bestKos, best);
+    const fresh = g !== this.gloveIdx || f !== this.floorIdx;
+    if (announce && !fresh) return;
+    if (announce) {
+      const text = g !== this.gloveIdx ? `NEW ${GLOVES[g].name.toUpperCase()} GLOVES!` : `NEW ${FLOORS[f].name.toUpperCase()} RING!`;
+      this.popups.spawn(text, '#7CFC9A', this.cx, this.scale.height * 0.66, 1, 1400);
+      this.writeSave();
+    }
+    this.gloveIdx = g;
+    this.floorIdx = f;
+    for (const gl of this.myGloves) gl.setColor(GLOVES[g].color);
+    this.floor.setFillStyle(FLOORS[f].color);
   }
 
   private layout(): void {
@@ -225,10 +256,10 @@ export class GameScene extends Phaser.Scene {
     this.ring.setRadius(u * 1.1);
 
     this.scoreText.setPosition(pad, pad).setFontSize(fs);
-    this.bestText.setPosition(w - pad, pad).setFontSize(fs);
+    this.bestText.setPosition(w - pad, pad).setFontSize(Math.round(fs * 0.7));
     this.rivalText.setPosition(w / 2, this.cy + u * 4.5).setFontSize(Math.round(fs * 0.75));
     this.comboText.setPosition(w / 2, h * 0.58).setFontSize(Math.round(fs * 1.6));
-    this.msgText.setPosition(w / 2, h * 0.6).setFontSize(Math.round(fs * 1.3)).setWordWrapWidth(w * 0.9);
+    this.msgText.setPosition(w / 2, h * 0.53).setFontSize(Math.round(fs * 1.3)).setWordWrapWidth(w * 0.9);
 
     const barX = pad + MAX_HEARTS * u * 1.1 + u * 0.3;
     this.barW = w - pad - u * 1.5 - barX;
@@ -260,7 +291,8 @@ export class GameScene extends Phaser.Scene {
 
   private showTitle(): void {
     this.state = 'title';
-    this.setMsg(`COUNTER CHAMP\n\nTAP TO FIGHT\nBest ${this.best}`, false);
+    const goal = nextGoal(this.bestKos, this.best);
+    this.setMsg(`COUNTER CHAMP\n\nTAP TO FIGHT\nBest ${this.best}${goal ? `\n\n${goal}` : ''}`, false);
   }
 
   private pop(text: string, color: string): void {
@@ -401,7 +433,7 @@ export class GameScene extends Phaser.Scene {
       this.combo++;
       const gain = 100 * this.combo;
       this.score += gain;
-      this.ko += KO_PERFECT;
+      this.ko += this.tn.koPerfect;
       this.fx = 'counter';
       this.pop(this.combo > 1 ? `PERFECT x${this.combo}` : 'PERFECT!', '#ffd23f');
       this.popups.spawn(`+${gain}`, '#7CFC9A', ix, iy, 0.8, 700);
@@ -413,7 +445,7 @@ export class GameScene extends Phaser.Scene {
     } else {
       this.combo = 0;
       this.score += 20;
-      this.ko += KO_GOOD;
+      this.ko += this.tn.koPerfect * KO_BLOCK_SHARE;
       this.fx = 'block';
       this.pop('BLOCK', '#8ecae6');
       this.particles.burst(ix, iy, 0xffffff, 4, 5, 0.35);
@@ -421,6 +453,7 @@ export class GameScene extends Phaser.Scene {
     }
     if (this.ko >= 0.999) this.startKo();
     else this.endThreat();
+    this.applyUnlocks(true);
   }
 
   private miss(reason: MissReason): void {
@@ -457,6 +490,12 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.shake(260, 0.016);
     this.hurtFace();
     if (this.level + 1 > this.bestRival) this.bestRival = this.level + 1;
+    if (this.level + 1 > this.bestKos) this.bestKos = this.level + 1;
+    if ((this.level + 1) % HEAL_EVERY === 0 && this.hearts < MAX_HEARTS) {
+      this.hearts++;
+      this.setHearts();
+      this.popups.spawn('+1 HEART', '#ff8fa3', this.cx, this.cy + this.u * 3.2, 0.9, 1100);
+    }
   }
 
   private hurtFace(): void {
@@ -475,9 +514,10 @@ export class GameScene extends Phaser.Scene {
       this.newBest = true;
     }
     if (this.level + 1 > this.bestRival) this.bestRival = this.level + 1;
-    platform.save('save', JSON.stringify({ best: this.best, bestRival: this.bestRival }));
+    this.writeSave();
+    const goal = nextGoal(this.bestKos, this.best);
     this.setMsg(
-      `KNOCKED OUT\n\nScore ${this.score}\n${this.newBest ? 'NEW BEST!' : `Best ${this.best}`}\nBest rival #${this.bestRival}\n\nTAP TO RETRY`,
+      `KNOCKED OUT\n\nScore ${this.score}\n${this.newBest ? 'NEW BEST!' : `Best ${this.best}`}\nBest rival #${this.bestRival}\n\n${goal ? `${goal}\n\n` : ''}TAP TO RETRY`,
       true,
     );
   }
@@ -610,7 +650,7 @@ export class GameScene extends Phaser.Scene {
     if (this.score !== this.shownScore) {
       this.shownScore = this.score;
       this.scoreText.setText(`${this.score}`);
-      this.bestText.setText(`BEST ${Math.max(this.best, this.score)}`);
+      this.bestText.setText(`BEST ${Math.max(this.best, this.score)}\nRIVAL #${Math.max(this.bestRival, this.level + 1)}`);
     }
     if (this.combo !== this.shownCombo) {
       this.shownCombo = this.combo;
@@ -628,5 +668,6 @@ export class GameScene extends Phaser.Scene {
     d.msToImpact = threat ? this.impactAt - this.t : 9999;
     d.threatSide = threat ? threat.side : 0;
     d.feint = threat ? threat.feint : false;
+    d.glove = this.gloveIdx;
   }
 }

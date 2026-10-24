@@ -33,5 +33,17 @@
 - Not verified: 60 fps on a real phone (headless only) and actual sound (no audio device) – owner check.
 - Next: owner feedback on feel → M3 progression. Model: Opus for the difficulty curve, then Sonnet.
 
+## 2026-10-24 – M3 (code done, owner playtest pending)
+- Done: curve tuned by Monte Carlo sim (3 player models): KO needs more counters from rival 3
+  (`koPerfect` per level), wind-ups 900→560 ms then −20/rival to 420; every 3rd KO gives +1 heart
+  (same slot as the later interstitial). Sim: new ~47 s / 3 KOs, average ~63 s / 5, good ~2 min / 8–10.
+- Unlocks (auto-equip newest, pop-up mid-run): gloves by rivals beaten (Blue after 1st KO →
+  reached in run 1 by ~98 %), ring floor colors by score 1500/4000/8000. Next goal shown on
+  title + game over. HUD: best score + best rival. Save `{best, bestRival, bestKos}` via adapter.
+- Smoke now checks unlock survives reload; retry wait 450→650 ms (was flaky on slow headless frames).
+- Bundle 1.23 MB (341 KB gzip). No console errors.
+- Not verified: sim player models are guesses – owner playtest decides. No locker menu (→ IDEAS).
+- Next: M4 portal adapter + ads. Model: Sonnet.
+
 ## Overrides
 (none)

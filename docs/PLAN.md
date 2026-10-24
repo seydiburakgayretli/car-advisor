@@ -25,10 +25,10 @@ Acceptance: 60 fps on mid-range phone; impacts feel punchy; no console errors.
 
 ## M3 – Progression
 Model: Opus (curve tuning), then Sonnet
-- [ ] Best score + best opponent always visible
-- [ ] Cosmetic unlocks (gloves, shorts, ring)
-- [ ] Tuned difficulty curve (new player ~45 s, good player ~2 min)
-- [ ] Save/load through the adapter
+- [x] Best score + best opponent always visible
+- [x] Cosmetic unlocks (gloves, ring; shorts dropped – player is only gloves)
+- [x] Tuned difficulty curve (new player ~45 s, good player ~2 min)
+- [x] Save/load through the adapter
 Acceptance: progress survives reload; unlock reached in first 3 runs.
 
 ## M4 – Portal adapter + ads

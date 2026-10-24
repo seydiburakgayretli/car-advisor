@@ -46,11 +46,19 @@ const fail = (msg) => { console.error('SMOKE FAIL:', msg); process.exitCode = 1;
     const over = await snap();
     console.log('game over reached:', JSON.stringify(over));
 
-    await sleep(450);                                          // retry lock
+    await sleep(650);                                          // retry lock (game time, + hit-stop, + slow headless frames)
     const t0 = Date.now();
     await page.keyboard.press('ArrowLeft');
     await page.waitForFunction(() => window.__cc.state === 'idle', null, { timeout: 1000 });
     console.log(`restart took ${Date.now() - t0} ms`);
+
+    // progress survives reload: first KO unlocked the 2nd gloves and they stay equipped
+    await page.reload();
+    await page.waitForFunction(() => window.__cc && window.__cc.state === 'title', null, { timeout: 10000 });
+    const saved = await page.evaluate(() => localStorage.getItem('cc.save'));
+    const glove = await page.evaluate(() => window.__cc.glove);
+    console.log('after reload:', saved, 'glove', glove);
+    if (glove < 1) fail(`unlock lost after reload: ${saved}`);
 
     if (errors.length) fail(`console errors:\n${errors.join('\n')}`);
     else if (!process.exitCode) console.log('SMOKE OK');
